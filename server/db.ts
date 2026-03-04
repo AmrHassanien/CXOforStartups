@@ -55,9 +55,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
     }
 
     if (!values.lastSignedIn) {
@@ -89,13 +86,25 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+
 // TODO: add feature queries here as your schema grows.
 
 // Blog post functions
 export async function createBlogPost(post: Omit<InsertBlogPost, "id" | "createdAt" | "updatedAt">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const [result] = await db.insert(blogPosts).values(post);
   // Fetch and return the created post
   const [createdPost] = await db.select().from(blogPosts).where(eq(blogPosts.id, Number(result.insertId))).limit(1);
@@ -105,12 +114,12 @@ export async function createBlogPost(post: Omit<InsertBlogPost, "id" | "createdA
 export async function updateBlogPost(id: number, updates: Partial<Omit<InsertBlogPost, "id" | "authorId" | "createdAt">>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const updateData: Record<string, unknown> = { ...updates };
   if (updates.published === true) {
     updateData.publishedAt = new Date();
   }
-  
+
   await db.update(blogPosts).set(updateData).where(eq(blogPosts.id, id));
   return { success: true };
 }
@@ -118,7 +127,7 @@ export async function updateBlogPost(id: number, updates: Partial<Omit<InsertBlo
 export async function deleteBlogPost(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.delete(blogPosts).where(eq(blogPosts.id, id));
   return { success: true };
 }
@@ -126,41 +135,41 @@ export async function deleteBlogPost(id: number) {
 export async function getBlogPosts(tag?: string) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const posts = await db.select().from(blogPosts).orderBy(desc(blogPosts.createdAt));
-  
+
   if (tag) {
-    return posts.filter(post => 
+    return posts.filter(post =>
       post.tags.split(',').map(t => t.trim().toLowerCase()).includes(tag.toLowerCase())
     );
   }
-  
+
   return posts;
 }
 
 export async function getPublishedBlogPosts(tag?: string) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const posts = await db
     .select()
     .from(blogPosts)
     .where(eq(blogPosts.published, true))
     .orderBy(desc(blogPosts.publishedAt));
-  
+
   if (tag) {
-    return posts.filter(post => 
+    return posts.filter(post =>
       post.tags.split(',').map(t => t.trim().toLowerCase()).includes(tag.toLowerCase())
     );
   }
-  
+
   return posts;
 }
 
 export async function getRecentPublishedPosts(limit: number = 3) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(blogPosts)
@@ -172,7 +181,7 @@ export async function getRecentPublishedPosts(limit: number = 3) {
 export async function getBlogPostBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;
-  
+
   const result = await db.select().from(blogPosts).where(eq(blogPosts.slug, slug)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -181,7 +190,7 @@ export async function getBlogPostBySlug(slug: string) {
 export async function createContactInquiry(inquiry: Omit<InsertContactInquiry, "id" | "createdAt" | "updatedAt" | "status">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const [result] = await db.insert(contactInquiries).values(inquiry);
   return result;
 }
@@ -189,14 +198,14 @@ export async function createContactInquiry(inquiry: Omit<InsertContactInquiry, "
 export async function getContactInquiries() {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db.select().from(contactInquiries).orderBy(desc(contactInquiries.createdAt));
 }
 
 export async function updateContactInquiryStatus(id: number, status: "new" | "contacted" | "closed") {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.update(contactInquiries).set({ status }).where(eq(contactInquiries.id, id));
   return { success: true };
 }
@@ -205,7 +214,7 @@ export async function updateContactInquiryStatus(id: number, status: "new" | "co
 export async function createJobPosting(job: Omit<InsertJobPosting, "id" | "createdAt" | "updatedAt">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const [result] = await db.insert(jobPostings).values(job);
   // Fetch and return the created job
   const [createdJob] = await db.select().from(jobPostings).where(eq(jobPostings.id, Number(result.insertId))).limit(1);
@@ -215,7 +224,7 @@ export async function createJobPosting(job: Omit<InsertJobPosting, "id" | "creat
 export async function updateJobPosting(id: number, updates: Partial<Omit<InsertJobPosting, "id" | "createdAt">>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.update(jobPostings).set(updates).where(eq(jobPostings.id, id));
   return { success: true };
 }
@@ -223,7 +232,7 @@ export async function updateJobPosting(id: number, updates: Partial<Omit<InsertJ
 export async function deleteJobPosting(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.delete(jobPostings).where(eq(jobPostings.id, id));
   return { success: true };
 }
@@ -231,7 +240,7 @@ export async function deleteJobPosting(id: number) {
 export async function getActiveJobPostings() {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(jobPostings)
@@ -242,14 +251,14 @@ export async function getActiveJobPostings() {
 export async function getAllJobPostings() {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db.select().from(jobPostings).orderBy(desc(jobPostings.createdAt));
 }
 
 export async function getJobPostingBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;
-  
+
   const result = await db.select().from(jobPostings).where(eq(jobPostings.slug, slug)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -258,7 +267,7 @@ export async function getJobPostingBySlug(slug: string) {
 export async function createJobApplication(application: Omit<InsertJobApplication, "id" | "createdAt" | "updatedAt" | "status" | "notes">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const [result] = await db.insert(jobApplications).values(application);
   return result;
 }
@@ -266,7 +275,7 @@ export async function createJobApplication(application: Omit<InsertJobApplicatio
 export async function getJobApplications(jobId?: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   if (jobId) {
     return await db
       .select()
@@ -274,23 +283,23 @@ export async function getJobApplications(jobId?: number) {
       .where(eq(jobApplications.jobId, jobId))
       .orderBy(desc(jobApplications.createdAt));
   }
-  
+
   return await db.select().from(jobApplications).orderBy(desc(jobApplications.createdAt));
 }
 
 export async function updateJobApplicationStatus(
-  id: number, 
+  id: number,
   status: "new" | "reviewing" | "shortlisted" | "rejected" | "hired",
   notes?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const updateData: Record<string, unknown> = { status };
   if (notes !== undefined) {
     updateData.notes = notes;
   }
-  
+
   await db.update(jobApplications).set(updateData).where(eq(jobApplications.id, id));
   return { success: true };
 }

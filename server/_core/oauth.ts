@@ -1,53 +1,88 @@
+/**
+ * Admin login endpoint — replaces Manus OAuth callback.
+ * POST /auth/login  { username, password }  → sets session cookie
+ * POST /auth/logout                         → clears session cookie
+ */
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
-import type { Express, Request, Response } from "express";
-import * as db from "../db";
-import { getSessionCookieOptions } from "./cookies";
-import { sdk } from "./sdk";
+import bcrypt from "bcryptjs";
+import type { Request, Response, Router } from "express";
+import { ENV } from "./env";
+import { signSession } from "./sdk";
 
-function getQueryParam(req: Request, key: string): string | undefined {
-  const value = req.query[key];
-  return typeof value === "string" ? value : undefined;
-}
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: ENV.nodeEnv === "production",
+  sameSite: "lax" as const,
+  maxAge: ONE_YEAR_MS / 1000, // seconds
+  path: "/",
+};
 
-export function registerOAuthRoutes(app: Express) {
-  app.get("/api/oauth/callback", async (req: Request, res: Response) => {
-    const code = getQueryParam(req, "code");
-    const state = getQueryParam(req, "state");
+export function registerAuthRoutes(router: Router) {
+  /**
+   * POST /auth/login
+   * Body: { username: string; password: string }
+   */
+  router.post("/auth/login", async (req: Request, res: Response) => {
+    const { username, password } = req.body ?? {};
 
-    if (!code || !state) {
-      res.status(400).json({ error: "code and state are required" });
-      return;
+    if (typeof username !== "string" || typeof password !== "string") {
+      return res.status(400).json({ error: "username and password required" });
     }
 
+    // Constant-time username check
+    const usernameMatch = username === ENV.adminUsername;
+
+    // Always run bcrypt compare to prevent timing attacks
+    const storedHash = ENV.adminPasswordHash || "$2b$12$invalid-hash-placeholder";
+    const passwordMatch = await bcrypt.compare(password, storedHash);
+
+    if (!usernameMatch || !passwordMatch) {
+      console.warn(`[Auth] Failed login attempt for username: ${username}`);
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    // Create JWT session
+    const token = await signSession({ userId: 1, username });
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+
+    return res.json({
+      ok: true,
+      user: { id: 1, username },
+    });
+  });
+
+  /**
+   * POST /auth/logout
+   */
+  router.post("/auth/logout", (_req: Request, res: Response) => {
+    res.clearCookie(COOKIE_NAME, { path: "/" });
+    return res.json({ ok: true });
+  });
+
+  /**
+   * GET /auth/me — returns current session info (or 401)
+   */
+  router.get("/auth/me", async (req: Request, res: Response) => {
+    const cookieHeader = req.headers.cookie ?? "";
+    const match = cookieHeader.match(new RegExp(`${COOKIE_NAME}=([^;]+)`));
+    const token = match?.[1];
+
+    if (!token) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    // Reuse the same verifySession logic from sdk
+    const { jwtVerify } = await import("jose");
     try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
-      const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
-
-      if (!userInfo.openId) {
-        res.status(400).json({ error: "openId missing from user info" });
-        return;
-      }
-
-      await db.upsertUser({
-        openId: userInfo.openId,
-        name: userInfo.name || null,
-        email: userInfo.email ?? null,
-        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-        lastSignedIn: new Date(),
+      const secret = new TextEncoder().encode(ENV.cookieSecret);
+      const { payload } = await jwtVerify(token, secret, {
+        algorithms: ["HS256"],
       });
-
-      const sessionToken = await sdk.createSessionToken(userInfo.openId, {
-        name: userInfo.name || "",
-        expiresInMs: ONE_YEAR_MS,
+      return res.json({
+        user: { id: payload.userId, username: payload.username },
       });
-
-      const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-
-      res.redirect(302, "/");
-    } catch (error) {
-      console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+    } catch {
+      return res.status(401).json({ error: "Invalid session" });
     }
   });
 }
