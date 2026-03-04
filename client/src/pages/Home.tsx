@@ -67,7 +67,10 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative py-20 md:py-32 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-background"></div>
+        <div className="absolute inset-0">
+          <img src="/images/hero-home.png" alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-background/75" />
+        </div>
         <div className="container relative">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="mb-6 text-foreground">
@@ -160,32 +163,32 @@ export default function Home() {
               {recentPosts.data.map((post) => (
                 <Link key={post.id} href={`/blog/${post.slug}`}>
                   <Card className="h-full hover:shadow-lg transition-shadow">
-                      {post.coverImage && (
-                        <div className="h-48 overflow-hidden">
-                          <img
-                            src={post.coverImage}
-                            alt={post.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <CardHeader>
-                        <CardTitle className="text-xl line-clamp-2">{post.title}</CardTitle>
-                        <CardDescription className="line-clamp-3">
-                          {post.excerpt}
-                        </CardDescription>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {post.tags.split(",").slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="text-xs px-2 py-1 bg-accent/20 text-accent-foreground rounded"
-                            >
-                              {tag.trim()}
-                            </span>
-                          ))}
-                        </div>
-                      </CardHeader>
-                    </Card>
+                    {post.coverImage && (
+                      <div className="h-48 overflow-hidden">
+                        <img
+                          src={post.coverImage}
+                          alt={post.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <CardHeader>
+                      <CardTitle className="text-xl line-clamp-2">{post.title}</CardTitle>
+                      <CardDescription className="line-clamp-3">
+                        {post.excerpt}
+                      </CardDescription>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {post.tags.split(",").slice(0, 3).map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs px-2 py-1 bg-accent/20 text-accent-foreground rounded"
+                          >
+                            {tag.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </CardHeader>
+                  </Card>
                 </Link>
               ))}
             </div>

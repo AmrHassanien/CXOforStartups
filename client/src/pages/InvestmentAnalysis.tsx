@@ -40,8 +40,12 @@ export default function InvestmentAnalysis() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
-      <section className="py-20 md:py-32 bg-gradient-to-br from-primary/5 via-accent/5 to-background">
-        <div className="container">
+      <section className="relative py-20 md:py-32 overflow-hidden">
+        <div className="absolute inset-0">
+          <img src="/images/hero-investment-analysis.png" alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-background/80" />
+        </div>
+        <div className="container relative">
           <div className="max-w-3xl">
             <h1 className="mb-6 text-foreground">Startup Investment Analysis</h1>
             <p className="text-xl text-muted-foreground mb-8 leading-relaxed">

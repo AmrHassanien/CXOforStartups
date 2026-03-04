@@ -56,7 +56,11 @@ export default function About() {
     <div className="flex flex-col min-h-screen">
 
       {/* Hero Section */}
-      <section className="py-20 bg-gradient-to-br from-primary/5 via-accent/5 to-background">
+      <section className="relative py-20 overflow-hidden">
+        <div className="absolute inset-0">
+          <img src="/images/hero-about.png" alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-background/80" />
+        </div>
         <div className="container">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
