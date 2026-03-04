@@ -1,102 +1,70 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
+/**
+ * Firebase Storage integration — replaces the Manus storage proxy.
+ *
+ * Architecture:
+ * - Uses the Firebase Admin SDK (firebase-admin) to generate signed upload URLs
+ *   and to retrieve public download URLs.
+ * - The bucket name is read from ENV.firebaseStorageBucket.
+ * - Files are stored under a predictable path: uploads/<nanoid>-<filename>
+ *
+ * Usage pattern (same interface as the old Manus storagePut/storageGet):
+ *   import { uploadFile, getFileUrl } from './storage';
+ */
 
-import { ENV } from './_core/env';
+import { getStorage } from "firebase-admin/storage";
+import { nanoid } from "nanoid";
+import { ENV } from "./_core/env";
+import { initFirebaseAdmin } from "./_core/firebase";
 
-type StorageConfig = { baseUrl: string; apiKey: string };
+// Ensure Firebase Admin is initialized before using storage
+initFirebaseAdmin();
 
-function getStorageConfig(): StorageConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
-
-  if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
-  }
-
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
-}
-
-function buildUploadUrl(baseUrl: string, relKey: string): URL {
-  const url = new URL("v1/storage/upload", ensureTrailingSlash(baseUrl));
-  url.searchParams.set("path", normalizeKey(relKey));
-  return url;
-}
-
-async function buildDownloadUrl(
-  baseUrl: string,
-  relKey: string,
-  apiKey: string
+/**
+ * Upload a file buffer to Firebase Storage.
+ * Returns the public HTTPS URL of the uploaded file.
+ *
+ * @param fileBuffer  Raw file content as Buffer
+ * @param filename    Original filename (used for Content-Type detection)
+ * @param mimeType    MIME type of the file
+ */
+export async function uploadFile(
+  fileBuffer: Buffer,
+  filename: string,
+  mimeType: string
 ): Promise<string> {
-  const downloadApiUrl = new URL(
-    "v1/storage/downloadUrl",
-    ensureTrailingSlash(baseUrl)
-  );
-  downloadApiUrl.searchParams.set("path", normalizeKey(relKey));
-  const response = await fetch(downloadApiUrl, {
-    method: "GET",
-    headers: buildAuthHeaders(apiKey),
-  });
-  return (await response.json()).url;
-}
+  const bucket = getStorage().bucket(ENV.firebaseStorageBucket);
+  const storagePath = `uploads/${nanoid()}-${filename}`;
 
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
-function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
-}
-
-function toFormData(
-  data: Buffer | Uint8Array | string,
-  contentType: string,
-  fileName: string
-): FormData {
-  const blob =
-    typeof data === "string"
-      ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
-  const form = new FormData();
-  form.append("file", blob, fileName || "file");
-  return form;
-}
-
-function buildAuthHeaders(apiKey: string): HeadersInit {
-  return { Authorization: `Bearer ${apiKey}` };
-}
-
-export async function storagePut(
-  relKey: string,
-  data: Buffer | Uint8Array | string,
-  contentType = "application/octet-stream"
-): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
-  const key = normalizeKey(relKey);
-  const uploadUrl = buildUploadUrl(baseUrl, key);
-  const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: buildAuthHeaders(apiKey),
-    body: formData,
+  const file = bucket.file(storagePath);
+  await file.save(fileBuffer, {
+    metadata: {
+      contentType: mimeType,
+    },
   });
 
-  if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
-    );
-  }
-  const url = (await response.json()).url;
-  return { key, url };
+  // Make the file publicly readable
+  await file.makePublic();
+
+  const publicUrl = `https://storage.googleapis.com/${ENV.firebaseStorageBucket}/${storagePath}`;
+  return publicUrl;
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
-  const { baseUrl, apiKey } = getStorageConfig();
-  const key = normalizeKey(relKey);
-  return {
-    key,
-    url: await buildDownloadUrl(baseUrl, key, apiKey),
-  };
+/**
+ * Get the public URL for a file already in Firebase Storage.
+ * For files uploaded with makePublic() this is deterministic.
+ *
+ * @param storagePath  The path within the bucket (e.g. uploads/abc123-image.png)
+ */
+export function getFileUrl(storagePath: string): string {
+  return `https://storage.googleapis.com/${ENV.firebaseStorageBucket}/${storagePath}`;
+}
+
+/**
+ * Delete a file from Firebase Storage.
+ *
+ * @param storagePath  The path within the bucket
+ */
+export async function deleteFile(storagePath: string): Promise<void> {
+  const bucket = getStorage().bucket(ENV.firebaseStorageBucket);
+  await bucket.file(storagePath).delete({ ignoreNotFound: true });
 }
