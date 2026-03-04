@@ -1,7 +1,6 @@
 import { eq, desc } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { InsertUser, users, blogPosts, InsertBlogPost, contactInquiries, InsertContactInquiry, jobPostings, InsertJobPosting, jobApplications, InsertJobApplication } from "../drizzle/schema";
-import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -65,7 +64,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    // Use PostgreSQL's ON CONFLICT DO UPDATE (upsert)
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -105,9 +106,8 @@ export async function createBlogPost(post: Omit<InsertBlogPost, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(blogPosts).values(post);
-  // Fetch and return the created post
-  const [createdPost] = await db.select().from(blogPosts).where(eq(blogPosts.id, Number(result.insertId))).limit(1);
+  // PostgreSQL: use .returning() to get the inserted row
+  const [createdPost] = await db.insert(blogPosts).values(post).returning();
   return createdPost;
 }
 
