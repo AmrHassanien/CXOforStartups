@@ -30,8 +30,8 @@ foreach ($Secret in $Secrets) {
     # Prompt user for value (if they want to update it)
     $Value = Read-Host "Enter the value for $Secret (leave empty to skip update)"
     if ($Value) {
-        # Add a new version with the provided value
-        printf "$Value" | gcloud secrets versions add $Secret --data-file=- --project $ProjectId
+        # Add a new version with the provided value (standard PowerShell piping)
+        $Value | gcloud secrets versions add $Secret --data-file=- --project $ProjectId
         Write-Host "Updated $Secret with a new version." -ForegroundColor Green
     }
 }
