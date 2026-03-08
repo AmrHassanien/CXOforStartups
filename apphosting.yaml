@@ -4,15 +4,12 @@
 kind: "AppHostingYaml"
 schemaVersion: "v1"
 
-# Environment variables that are NOT secrets
+# Environment variables and Secrets
 env:
   - variable: NODE_ENV
     value: production
   - variable: PORT
     value: "8080"
-
-# Secrets (linked to GCP Secret Manager)
-env:
   - variable: DATABASE_URL
     secret: DATABASE_URL
   - variable: COOKIE_SECRET
