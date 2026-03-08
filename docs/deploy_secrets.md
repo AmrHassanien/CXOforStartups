@@ -31,13 +31,23 @@ When you set up the **App Hosting Backend** in the Firebase Console:
 | `GEMINI_API_KEY` | `GEMINI_API_KEY` |
 | `FIREBASE_STORAGE_BUCKET` | `FIREBASE_STORAGE_BUCKET` |
 
-## 🛠️ Step 3: Deployment
+## 🛠️ Step 3: No `.env` File Needed in Production
 
-Once configured, any push to your main branch will trigger a build:
+You do **not** need to create or upload a `.env` file to your repository or to Firebase. In fact, doing so would be a security risk.
 
-1.  **Build Phase**: Runs `pnpm build` (compiles Vite frontend and bundles Express server).
-2.  **Run Phase**: Starts the server using `node dist/index.js`.
-3.  **Authentication**: Your first login attempt will "bootstrap" the admin user into your Supabase database.
+- **How it works**: The `apphosting.yaml` file I created tells Firebase to look for these secrets in your GCP Secret Manager and "inject" them directly into the application's process as environment variables.
+- **Why this is better**: This is a industry best practice called **Native Secret Injection**. Your code (in `server/_core/env.ts`) simply reads `process.env[VARIABLE_NAME]`.
+- **Local Development**: You should still keep your local `.env` file for your own computer, using the provided `.env.example` as a template.
+
+## 🛠️ Step 4: Deployment Flow
+
+Once you have configured the secrets in the Firebase Console:
+
+1.  **Push to GitHub**: Send your code to your repo.
+2.  **Auto-Build**: Firebase App Hosting will detect the push.
+3.  **Asset Handling**: It runs `pnpm build` to compile the Vite frontend.
+4.  **Starting up**: It runs `node dist/index.js` which loads your secrets from memory.
+
 
 ---
 
