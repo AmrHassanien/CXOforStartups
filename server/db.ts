@@ -65,6 +65,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
 
     // Use PostgreSQL's ON CONFLICT DO UPDATE (upsert)
+    // Supports updating username and passwordHash as well.
     await db.insert(users).values(values).onConflictDoUpdate({
       target: users.openId,
       set: updateSet,
@@ -84,6 +85,17 @@ export async function getUserByOpenId(openId: string) {
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -191,7 +203,7 @@ export async function createContactInquiry(inquiry: Omit<InsertContactInquiry, "
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(contactInquiries).values(inquiry);
+  const [result] = await db.insert(contactInquiries).values(inquiry).returning();
   return result;
 }
 
@@ -215,9 +227,7 @@ export async function createJobPosting(job: Omit<InsertJobPosting, "id" | "creat
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(jobPostings).values(job);
-  // Fetch and return the created job
-  const [createdJob] = await db.select().from(jobPostings).where(eq(jobPostings.id, Number(result.insertId))).limit(1);
+  const [createdJob] = await db.insert(jobPostings).values(job).returning();
   return createdJob;
 }
 
@@ -268,7 +278,7 @@ export async function createJobApplication(application: Omit<InsertJobApplicatio
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(jobApplications).values(application);
+  const [result] = await db.insert(jobApplications).values(application).returning();
   return result;
 }
 

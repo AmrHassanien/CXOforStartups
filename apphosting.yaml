@@ -1,0 +1,36 @@
+# Firebase App Hosting configuration
+# For more information, see: https://firebase.google.com/docs/app-hosting/configure
+
+kind: "AppHostingYaml"
+schemaVersion: "v1"
+
+# Environment variables that are NOT secrets
+env:
+  - variable: NODE_ENV
+    value: production
+  - variable: PORT
+    value: "8080"
+
+# Secrets (to be configured in Firebase Console / GCP Secret Manager)
+# You must link these secrets to the corresponding environment variables
+# during the Firebase App Hosting setup process.
+# env:
+#   - variable: DATABASE_URL
+#     secret: DATABASE_URL
+#   - variable: COOKIE_SECRET
+#     secret: COOKIE_SECRET
+#   - variable: ADMIN_USERNAME
+#     secret: ADMIN_USERNAME
+#   - variable: ADMIN_PASSWORD_HASH
+#     secret: ADMIN_PASSWORD_HASH
+#   - variable: GEMINI_API_KEY
+#     secret: GEMINI_API_KEY
+#   - variable: FIREBASE_STORAGE_BUCKET
+#     secret: FIREBASE_STORAGE_BUCKET
+
+runConfig:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512

@@ -39,9 +39,14 @@ export const users = pgTable("users", {
 
   /**
    * Legacy OAuth identifier field — kept for backward compat with existing data.
-   * For new username/password admin accounts, this can hold the username.
    */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  openId: varchar("openId", { length: 64 }).unique(),
+
+  /** Username for login */
+  username: varchar("username", { length: 64 }).unique(),
+
+  /** Hashed password */
+  passwordHash: text("passwordHash"),
 
   name: text("name"),
   email: varchar("email", { length: 320 }),

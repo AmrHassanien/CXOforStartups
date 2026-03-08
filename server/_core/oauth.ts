@@ -17,6 +17,8 @@ const COOKIE_OPTIONS = {
   path: "/",
 };
 
+import { getUserByUsername, upsertUser } from "../db";
+
 export function registerAuthRoutes(router: Router) {
   /**
    * POST /auth/login
@@ -29,25 +31,46 @@ export function registerAuthRoutes(router: Router) {
       return res.status(400).json({ error: "username and password required" });
     }
 
-    // Constant-time username check
-    const usernameMatch = username === ENV.adminUsername;
+    // 1. Try to find the user in the database
+    let user = await getUserByUsername(username);
 
-    // Always run bcrypt compare to prevent timing attacks
-    const storedHash = ENV.adminPasswordHash || "$2b$12$invalid-hash-placeholder";
-    const passwordMatch = await bcrypt.compare(password, storedHash);
+    // 2. Bootstrap: if not found, check ENV fallback and save to DB
+    if (!user) {
+      const usernameMatch = username === ENV.adminUsername;
+      const storedHash = ENV.adminPasswordHash || "$2b$12$invalid-hash-placeholder";
+      const passwordMatch = await bcrypt.compare(password, storedHash);
 
-    if (!usernameMatch || !passwordMatch) {
+      if (usernameMatch && passwordMatch) {
+        console.info(`[Auth] Bootstrapping admin user "${username}" into database.`);
+        await upsertUser({
+          openId: `admin-${username}`, // Unique placeholder for openId
+          username,
+          passwordHash: ENV.adminPasswordHash,
+          role: "admin",
+          loginMethod: "password",
+        });
+        user = await getUserByUsername(username);
+      }
+    }
+
+    // 3. Verify against DB record
+    if (!user || user.role !== "admin" || !user.passwordHash) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatch) {
       console.warn(`[Auth] Failed login attempt for username: ${username}`);
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
     // Create JWT session
-    const token = await signSession({ userId: 1, username });
+    const token = await signSession({ userId: user.id, username: user.username! });
     res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
 
     return res.json({
       ok: true,
-      user: { id: 1, username },
+      user: { id: user.id, username: user.username },
     });
   });
 
